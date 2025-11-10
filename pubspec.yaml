@@ -10,32 +10,25 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  
-  # Gestión de Estado (Versiones Estables)
+  flutter_dotenv: ^6.0.0
   flutter_riverpod: ^2.5.1
-  riverpod_annotation: ^2.5.1
-  
-  # Backend (Supabase)
-  supabase_flutter: ^2.8.1
-  
-  # Utilidades
-  intl: ^0.20.2 # <--- PAQUETE AÑADIDO
-  image_picker: ^1.1.2 
+  go_router: ^14.6.1
+  image_picker: ^1.1.2
+  intl: ^0.20.2
   path: ^1.9.0
-  flutter_dotenv: ^5.2.1
-  
-  # Desktop
-  window_size: ^0.1.0 
+  riverpod_annotation: ^2.5.1
+  supabase_flutter: ^2.8.1
+  window_size: ^0.1.0
 
 dev_dependencies:
-  flutter_test:
-    sdk: flutter
-  flutter_lints: ^5.0.0
-  
+
   # Generadores (Versiones Estables)
   build_runner: ^2.4.11
+  flutter_lints: ^5.0.0
+  flutter_test:
+    sdk: flutter
   riverpod_generator: ^2.5.1
-      
+
 flutter:
   uses-material-design: true
   assets:

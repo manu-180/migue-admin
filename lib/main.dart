@@ -1,9 +1,9 @@
-// migue_admin/lib/main.dart (CON DOTENV)
+// migue_admin/lib/main.dart (ACTUALIZADO CON ROUTER)
 
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // Importar dotenv
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:migue_admin/presentation/screens/admin/admin_screen.dart';
+import 'package:migue_admin/config/router/app_router.dart'; // Importar el router
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:window_size/window_size.dart';
 import 'dart:io' show Platform;
@@ -17,13 +17,12 @@ void main() async {
   // 2. Configurar la ventana (solo para desktop)
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
     setWindowTitle('Migue IPhones - Administrador');
-    setWindowMinSize(const Size(1000, 700)); // Mínimo para una buena vista de tabla
+    setWindowMinSize(const Size(1000, 700));
     setWindowMaxSize(Size.infinite);
   }
 
-  // 3. Inicializar Supabase usando las variables de .env
+  // 3. Inicializar Supabase
   await Supabase.initialize(
-    // Usamos dotenv.env[] para leer las variables
     url: dotenv.env['SUPABASE_URL']!,
     anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
@@ -35,32 +34,35 @@ void main() async {
   );
 }
 
-class MainAdminApp extends StatelessWidget {
+class MainAdminApp extends ConsumerWidget { // 1. Cambiar a ConsumerWidget
   const MainAdminApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
+  Widget build(BuildContext context, WidgetRef ref) { // 2. Añadir WidgetRef ref
+    
+    // 3. Observar el proveedor del router
+    final appRouter = ref.watch(appRouterProvider);
+
+    return MaterialApp.router(
+      routerConfig: appRouter, // 4. Usar routerConfig
       debugShowCheckedModeBanner: false,
       title: 'Migue IPhones Admin',
       theme: _appTheme(),
-      // Pantalla principal de administración
-      home: const AdminScreen(), 
+      // home: const AdminScreen(), // 5. Eliminar el 'home'
     );
   }
 
   ThemeData _appTheme() {
     return ThemeData(
-      // Tema Dark/Light para el escritorio (usaremos un tema oscuro para administración)
       brightness: Brightness.dark, 
       colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.blueGrey, // Color más sobrio para admin
+        seedColor: Colors.blueGrey,
         brightness: Brightness.dark,
-        primary: const Color(0xFF007AFF), // El mismo azul de Apple para consistencia
+        primary: const Color(0xFF007AFF),
       ),
-      scaffoldBackgroundColor: const Color(0xFF1E1E1E), // Fondo oscuro
-      cardTheme: CardThemeData( // Usamos CardThemeData
-        color: const Color(0xFF2D2D2D), // Cartas ligeramente más claras
+      scaffoldBackgroundColor: const Color(0xFF1E1E1E),
+      cardTheme: CardThemeData(
+        color: const Color(0xFF2D2D2D),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),

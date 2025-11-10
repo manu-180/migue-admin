@@ -8,6 +8,7 @@ import 'package:migue_admin/presentation/widgets/admin/product_form_modal.dart';
 import 'package:intl/intl.dart';
 
 class AdminScreen extends ConsumerWidget {
+  static const String name = 'admin_screen';
   const AdminScreen({super.key});
 
   // Formato para moneda local
@@ -16,6 +17,7 @@ class AdminScreen extends ConsumerWidget {
     symbol: '\$',
     decimalDigits: 2,
   );
+  
 
   // Muestra el formulario modal para CREAR o EDITAR
   void _showProductForm(BuildContext context, Product? product) {
