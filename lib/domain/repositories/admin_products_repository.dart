@@ -3,17 +3,13 @@
 import 'dart:io';
 import 'package:migue_admin/domain/models/product.dart';
 
-// Definición del Contrato del Repositorio de Administración
 abstract class AdminProductsRepository {
-  // R
   Future<List<Product>> getProducts();
   
-  // C (File? para la imagen)
-  Future<Product> createProduct(Product product, File? imageFile);
+  // Ahora aceptan List<File> para subir múltiples de una vez
+  Future<Product> createProduct(Product product, List<File> newImages);
   
-  // U (File? para la imagen que podría cambiar)
-  Future<Product> updateProduct(Product product, File? newImageFile);
+  Future<Product> updateProduct(Product product, List<File> newImages);
   
-  // D (Necesita el ID y la URL de la imagen para eliminarla del storage)
-  Future<void> deleteProduct(int id, String imageUrl);
+  Future<void> deleteProduct(int id);
 }

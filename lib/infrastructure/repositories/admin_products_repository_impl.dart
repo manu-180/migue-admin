@@ -12,13 +12,13 @@ class AdminProductsRepositoryImpl implements AdminProductsRepository {
     : datasource = datasource ?? AdminProductsDatasource();
 
   @override
-  Future<Product> createProduct(Product product, File? imageFile) {
-    return datasource.createProduct(product, imageFile);
+  Future<Product> createProduct(Product product, List<File> newImages) {
+    return datasource.createProduct(product, newImages);
   }
 
   @override
-  Future<void> deleteProduct(int id, String imageUrl) {
-    return datasource.deleteProduct(id, imageUrl);
+  Future<void> deleteProduct(int id) {
+    return datasource.deleteProduct(id);
   }
 
   @override
@@ -27,7 +27,7 @@ class AdminProductsRepositoryImpl implements AdminProductsRepository {
   }
 
   @override
-  Future<Product> updateProduct(Product product, File? newImageFile) {
-    return datasource.updateProduct(product, newImageFile);
+  Future<Product> updateProduct(Product product, List<File> newImages) {
+    return datasource.updateProduct(product, newImages);
   }
 }

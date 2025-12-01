@@ -23,7 +23,7 @@ class AdminScreen extends ConsumerWidget {
   void _showProductForm(BuildContext context, Product? product) {
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true, // Importante para que el teclado funcione bien
+      isScrollControlled: true, 
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       builder: (_) => ProductFormModal(productToEdit: product),
     );
@@ -53,7 +53,6 @@ class AdminScreen extends ConsumerWidget {
     if (confirmed == true) {
       final success = await ref.read(adminProductsNotifierProvider.notifier).deleteProduct(
         product.id!,
-        product.imageUrl, // Pasamos la URL para eliminar la imagen del storage
       );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -110,10 +109,11 @@ class AdminScreen extends ConsumerWidget {
                   header: const Text('Productos en Catálogo'),
                   rowsPerPage: 10,
                   columns: const [
-                    DataColumn(label: Text('ID', style: TextStyle(fontWeight: FontWeight.bold))),
+                    // ELIMINADA COLUMNA ID
                     DataColumn(label: Text('Nombre', style: TextStyle(fontWeight: FontWeight.bold))),
                     DataColumn(label: Text('Precio', style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
                     DataColumn(label: Text('Stock', style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.center)),
+                    DataColumn(label: Text('Desc.', style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.center)), 
                     DataColumn(label: Text('Categoría', style: TextStyle(fontWeight: FontWeight.bold))),
                     DataColumn(label: Text('Acciones', style: TextStyle(fontWeight: FontWeight.bold))),
                   ],
@@ -145,22 +145,27 @@ class ProductsDataSource extends DataTableSource {
 
     return DataRow(
       cells: [
-        DataCell(Text(product.id.toString())),
+        // ELIMINADA CELDA ID
+        
+        // 1. Nombre con miniatura
         DataCell(
           Row(
             children: [
-              // Miniatura de la imagen (opcional)
-              if (product.imageUrl.isNotEmpty)
+              if (product.mainImage.isNotEmpty)
                 ClipRRect(
                   borderRadius: BorderRadius.circular(5),
-                  child: Image.network(product.imageUrl, width: 40, height: 40, fit: BoxFit.cover)
+                  child: Image.network(product.mainImage, width: 40, height: 40, fit: BoxFit.cover)
                 ),
               const SizedBox(width: 10),
               Expanded(child: Text(product.name)),
             ],
           ),
         ),
+        
+        // 2. Precio
         DataCell(Text(AdminScreen.currencyFormatter.format(product.price))),
+        
+        // 3. Stock
         DataCell(
           Center(
             child: Text(
@@ -169,17 +174,32 @@ class ProductsDataSource extends DataTableSource {
             )
           )
         ),
+        
+        // 4. Descuento
+        DataCell(
+          Center(
+            child: product.discount > 0 
+              ? Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: Colors.red.withOpacity(0.2), borderRadius: BorderRadius.circular(4)),
+                  child: Text('${product.discount}%', style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                )
+              : const Text('-'),
+          )
+        ),
+        
+        // 5. Categoría
         DataCell(Text(product.category)),
+        
+        // 6. Acciones
         DataCell(
           Row(
             children: [
-              // Botón de Edición
               IconButton(
                 icon: const Icon(Icons.edit, color: Colors.blue),
                 onPressed: () => showForm(context, product),
                 tooltip: 'Editar',
               ),
-              // Botón de Eliminación
               IconButton(
                 icon: const Icon(Icons.delete, color: Colors.red),
                 onPressed: () => confirmDelete(context, ref, product),

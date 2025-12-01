@@ -20,33 +20,45 @@ class ProductFormModal extends ConsumerStatefulWidget {
 class _ProductFormModalState extends ConsumerState<ProductFormModal> {
   final _formKey = GlobalKey<FormState>();
   
-  // Controladores de Texto
   late TextEditingController nameCtrl;
   late TextEditingController descriptionCtrl;
   late TextEditingController priceCtrl;
   late TextEditingController stockCtrl;
+  late TextEditingController discountCtrl;
 
-  // Estado del formulario
-  String _category = 'iphone'; // Valor por defecto
-  File? _selectedImageFile;
+  String _category = 'iPhones'; 
   bool _isLoading = false;
 
-  // Opciones de categoría
-  static const List<String> categories = ['iphone', 'accessory', 'case'];
+  List<String> _existingImageUrls = [];
+  List<File> _newImageFiles = [];
 
+  // 1. CONTROLADOR DE SCROLL PARA LA GALERÍA
+  final ScrollController _galleryScrollController = ScrollController();
+
+  static const Map<String, String> categoryOptions = {
+    'iPhones': 'iPhones',
+    'Accesorios': 'Accesorios',
+    'Fundas': 'Fundas',
+  };
 
   @override
   void initState() {
     super.initState();
     final p = widget.productToEdit;
     
-    // Inicializar controladores con valores existentes si estamos editando
     nameCtrl = TextEditingController(text: p?.name ?? '');
     descriptionCtrl = TextEditingController(text: p?.description ?? '');
-    // Los números deben convertirse a String para el TextEditingController
     priceCtrl = TextEditingController(text: p?.price.toString() ?? '');
     stockCtrl = TextEditingController(text: p?.stock.toString() ?? '');
-    _category = p?.category ?? categories.first;
+    discountCtrl = TextEditingController(text: p?.discount.toString() ?? '0');
+    
+    _category = (p?.category != null && categoryOptions.containsKey(p!.category)) 
+        ? p.category 
+        : 'iPhones';
+    
+    if (p != null) {
+      _existingImageUrls = List.from(p.images);
+    }
   }
 
   @override
@@ -55,31 +67,67 @@ class _ProductFormModalState extends ConsumerState<ProductFormModal> {
     descriptionCtrl.dispose();
     priceCtrl.dispose();
     stockCtrl.dispose();
+    discountCtrl.dispose();
+    _galleryScrollController.dispose(); 
     super.dispose();
   }
   
-  // Lógica para seleccionar una imagen desde la computadora
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    // Usamos `pickImage` con source Gallery para abrir el selector de archivos
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-
-    if (pickedFile != null) {
-      setState(() {
-        _selectedImageFile = File(pickedFile.path);
-      });
+  // Lógica para el scroll lateral
+  void _scrollHorizontal(double delta) {
+    if (_galleryScrollController.hasClients) {
+      _galleryScrollController.animateTo(
+        _galleryScrollController.offset + delta,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
     }
   }
+
+  void _scrollLeft() => _scrollHorizontal(-110.0); // Desliza hacia atrás (ancho de 1 imagen + espaciado)
+  void _scrollRight() => _scrollHorizontal(110.0); // Desliza hacia adelante
+
+  void _scrollToEnd() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_galleryScrollController.hasClients) {
+        _galleryScrollController.animateTo(
+          _galleryScrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  Future<void> _pickImages() async {
+    final picker = ImagePicker();
+    final pickedFiles = await picker.pickMultiImage();
+
+    if (pickedFiles.isNotEmpty) {
+      setState(() {
+        _newImageFiles.addAll(pickedFiles.map((x) => File(x.path)));
+      });
+      _scrollToEnd(); 
+    }
+  }
+
+  void _removeExistingImage(String url) {
+    setState(() {
+      _existingImageUrls.remove(url);
+    });
+  }
+
+  void _removeNewImage(File file) {
+    setState(() {
+      _newImageFiles.remove(file);
+    });
+  }
   
-  // Lógica para enviar el formulario (Crear o Editar)
   Future<void> _submitForm() async {
     if (!_formKey.currentState!.validate()) return;
     
-    // Si estamos creando y no se selecciona una imagen
-    if (widget.productToEdit == null && _selectedImageFile == null) {
-      if (!mounted) return;
+    if (_existingImageUrls.isEmpty && _newImageFiles.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Debe seleccionar una imagen para un nuevo producto.')),
+        const SnackBar(content: Text('Debe haber al menos una imagen del producto.')),
       );
       return;
     }
@@ -88,14 +136,14 @@ class _ProductFormModalState extends ConsumerState<ProductFormModal> {
 
     final isEditing = widget.productToEdit != null;
     
-    // Crear el objeto Product
     final product = Product(
       id: widget.productToEdit?.id,
       name: nameCtrl.text,
       description: descriptionCtrl.text,
       price: double.tryParse(priceCtrl.text) ?? 0.0,
       stock: int.tryParse(stockCtrl.text) ?? 0,
-      imageUrl: widget.productToEdit?.imageUrl ?? '', // Se actualizará en el datasource si hay imagen
+      discount: int.tryParse(discountCtrl.text) ?? 0,
+      images: _existingImageUrls,
       category: _category,
     );
 
@@ -103,9 +151,9 @@ class _ProductFormModalState extends ConsumerState<ProductFormModal> {
     bool success = false;
 
     if (isEditing) {
-      success = await notifier.updateProduct(product, _selectedImageFile);
+      success = await notifier.updateProduct(product, _newImageFiles);
     } else {
-      success = await notifier.createProduct(product, _selectedImageFile);
+      success = await notifier.createProduct(product, _newImageFiles);
     }
 
     setState(() => _isLoading = false);
@@ -113,24 +161,38 @@ class _ProductFormModalState extends ConsumerState<ProductFormModal> {
     if (!mounted) return;
     
     if (success) {
+      Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${isEditing ? 'Actualizado' : 'Creado'} con éxito.')),
       );
-      Navigator.of(context).pop(); // Cerrar modal al finalizar
     } else {
        ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error en la operación. Revisar logs.')),
+        const SnackBar(content: Text('Error en la operación.')),
       );
     }
   }
 
+  // Widget helper para el botón de scroll
+  Widget _buildScrollButton(IconData icon, VoidCallback onPressed) {
+    return IconButton(
+      icon: Icon(icon),
+      onPressed: onPressed,
+      style: IconButton.styleFrom(
+        backgroundColor: Colors.white10,
+        padding: EdgeInsets.zero,
+        minimumSize: const Size(30, 30),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return SingleChildScrollView(
       child: Container(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
           left: 30,
           right: 30,
           top: 30,
@@ -142,123 +204,173 @@ class _ProductFormModalState extends ConsumerState<ProductFormModal> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                widget.productToEdit == null ? 'Añadir Nuevo Producto' : 'Editar Producto #${widget.productToEdit!.id}',
-                style: Theme.of(context).textTheme.headlineSmall,
+                widget.productToEdit == null ? 'Añadir Nuevo Producto' : 'Editar Producto',
+                style: theme.textTheme.headlineSmall,
               ),
               const Divider(),
               const SizedBox(height: 20),
 
-              // Nombre
-              TextFormField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(labelText: 'Nombre del Producto'),
-                validator: (value) => value!.isEmpty ? 'Ingrese un nombre' : null,
+              // 1. Nombre y Categoría
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: TextFormField(
+                      controller: nameCtrl,
+                      decoration: const InputDecoration(labelText: 'Nombre del Producto', border: OutlineInputBorder()),
+                      validator: (value) => value!.isEmpty ? 'Requerido' : null,
+                    ),
+                  ),
+                  const SizedBox(width: 15),
+                  Expanded(
+                    flex: 1,
+                    child: DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(labelText: 'Categoría', border: OutlineInputBorder()),
+                      value: categoryOptions.containsKey(_category) ? _category : 'iPhones',
+                      items: categoryOptions.entries.map((entry) {
+                        return DropdownMenuItem<String>(
+                          value: entry.key, 
+                          child: Text(entry.value),
+                        );
+                      }).toList(),
+                      onChanged: (newValue) {
+                        if (newValue != null) setState(() => _category = newValue);
+                      },
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 15),
 
-              // Descripción
+              // 2. Descripción
               TextFormField(
                 controller: descriptionCtrl,
-                decoration: const InputDecoration(labelText: 'Descripción'),
+                decoration: const InputDecoration(labelText: 'Descripción', border: OutlineInputBorder()),
                 maxLines: 3,
-                validator: (value) => value!.isEmpty ? 'Ingrese una descripción' : null,
+                validator: (value) => value!.isEmpty ? 'Requerido' : null,
               ),
               const SizedBox(height: 15),
 
-              // Precio y Stock
+              // 3. Precios y Stock
               Row(
                 children: [
                   Expanded(
                     child: TextFormField(
                       controller: priceCtrl,
-                      decoration: const InputDecoration(labelText: 'Precio (\$)', prefixText: '\$'),
+                      decoration: const InputDecoration(labelText: 'Precio', prefixText: '\$ ', border: OutlineInputBorder()),
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))],
-                      validator: (value) => (double.tryParse(value!) ?? 0.0) <= 0 ? 'Precio inválido' : null,
+                      validator: (v) => (double.tryParse(v!) ?? 0) <= 0 ? 'Inválido' : null,
                     ),
                   ),
-                  const SizedBox(width: 20),
+                  const SizedBox(width: 15),
+                  Expanded(
+                    child: TextFormField(
+                      controller: discountCtrl,
+                      decoration: const InputDecoration(labelText: 'Descuento %', suffixText: '%', border: OutlineInputBorder()),
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    ),
+                  ),
+                  const SizedBox(width: 15),
                   Expanded(
                     child: TextFormField(
                       controller: stockCtrl,
-                      decoration: const InputDecoration(labelText: 'Stock'),
+                      decoration: const InputDecoration(labelText: 'Stock', border: OutlineInputBorder()),
                       keyboardType: TextInputType.number,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      validator: (value) => (int.tryParse(value!) ?? 0) < 0 ? 'Stock inválido' : null,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 15),
+              const SizedBox(height: 25),
 
-              // Categoría y Selector de Imagen
+              // 4. GALERÍA DE IMÁGENES (Contenedor con Controles de Scroll)
+              Text('Galería de Imágenes', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 10),
+              
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Categoría
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      decoration: const InputDecoration(labelText: 'Categoría'),
-                      value: _category,
-                      items: categories.map((String value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text(value.toUpperCase()),
-                        );
-                      }).toList(),
-                      onChanged: (String? newValue) {
-                        if (newValue != null) {
-                          setState(() => _category = newValue);
-                        }
-                      },
-                      validator: (value) => value == null ? 'Seleccione categoría' : null,
-                    ),
-                  ),
-                  const SizedBox(width: 20),
+                  // FLECHA IZQUIERDA
+                  _buildScrollButton(Icons.arrow_back_ios_new_rounded, _scrollLeft),
                   
-                  // Selector de Imagen
+                  // CONTENEDOR DE LA LISTA (Expandido)
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Imagen', style: TextStyle(fontSize: 12, color: Colors.white70)),
-                        OutlinedButton.icon(
-                          onPressed: _pickImage,
-                          icon: const Icon(Icons.image),
-                          label: Text(_selectedImageFile == null ? 'Seleccionar Imagen' : 'Imagen Seleccionada'),
-                        ),
-                        // Previsualización de la imagen
-                        if (_selectedImageFile != null)
-                          Image.file(_selectedImageFile!, height: 100)
-                        else if (widget.productToEdit?.imageUrl != null && widget.productToEdit!.imageUrl.isNotEmpty)
-                          Image.network(widget.productToEdit!.imageUrl, height: 100)
-                        else
-                          const SizedBox(height: 10),
-                      ],
+                    child: Container(
+                      height: 120,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.withOpacity(0.3)),
+                        borderRadius: BorderRadius.circular(8),
+                        color: Colors.black12,
+                      ),
+                      child: ListView(
+                        controller: _galleryScrollController,
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          // Botón para agregar
+                          AspectRatio(
+                            aspectRatio: 1,
+                            child: InkWell(
+                              onTap: _pickImages,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primary.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: theme.colorScheme.primary, width: 1, style: BorderStyle.solid),
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.add_photo_alternate, color: theme.colorScheme.primary),
+                                    const Text('Agregar', style: TextStyle(fontSize: 12)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+
+                          // Imágenes Existentes (Red)
+                          ..._existingImageUrls.map((url) => _buildImageItem(
+                            imageProvider: NetworkImage(url),
+                            onRemove: () => _removeExistingImage(url),
+                          )),
+
+                          // Imágenes Nuevas (File)
+                          ..._newImageFiles.map((file) => _buildImageItem(
+                            imageProvider: FileImage(file),
+                            onRemove: () => _removeNewImage(file),
+                            isNew: true,
+                          )),
+                        ],
+                      ),
                     ),
                   ),
+                  
+                  // FLECHA DERECHA
+                  _buildScrollButton(Icons.arrow_forward_ios_rounded, _scrollRight),
                 ],
               ),
+              
               const SizedBox(height: 30),
 
-              // Botón de Envío
+              // Botón Guardar
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _submitForm,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    backgroundColor: theme.colorScheme.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 18),
                   ),
                   child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
+                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white))
                       : Text(
                           widget.productToEdit == null ? 'CREAR PRODUCTO' : 'GUARDAR CAMBIOS',
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                         ),
                 ),
               ),
@@ -266,6 +378,52 @@ class _ProductFormModalState extends ConsumerState<ProductFormModal> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // Widget helper para mostrar cada miniatura
+  Widget _buildImageItem({required ImageProvider imageProvider, required VoidCallback onRemove, bool isNew = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: Stack(
+        children: [
+          Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: isNew ? Border.all(color: Colors.green, width: 2) : null,
+              image: DecorationImage(
+                image: imageProvider,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+          Positioned(
+            top: 2,
+            right: 2,
+            child: InkWell(
+              onTap: onRemove,
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                child: const Icon(Icons.close, size: 14, color: Colors.white),
+              ),
+            ),
+          ),
+          if (isNew)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                color: Colors.green.withOpacity(0.8),
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: const Text('NUEVA', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
+              ),
+            )
+        ],
       ),
     );
   }
